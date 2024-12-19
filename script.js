@@ -1,12 +1,20 @@
 document.getElementById('csvFile').addEventListener('change', function(event) {
     const file = event.target.files[0];
     if (!file) return;
-
+     
+     const cardCountDisplay = document.getElementById('cardCount');
+     cardCountDisplay.textContent = "File selected. Starting file processing...";
+    
     const reader = new FileReader();
-    reader.onload = function(e) {
+    reader.onload = async function(e) {
+        cardCountDisplay.textContent = "File loaded. Reading CSV data...";
         const csvData = e.target.result;
         const rows = csvData.split('\n').filter(row => row.trim() !== "");
-        generateIdCards(rows);
+       await generateIdCards(rows);
+
+         setTimeout(() => {
+              cardCountDisplay.textContent = "";
+          }, 1000);
     };
     reader.readAsText(file);
 });
@@ -15,11 +23,14 @@ let allCards = [];
 let currentPage = 0;
 const cardsPerPage = 10;
 
-function generateIdCards(rows) {
+async function generateIdCards(rows) {
     const idCardContainer = document.getElementById('idCardContainer');
     idCardContainer.innerHTML = '';
     const headers = rows[0].split(',').map(header => header.trim());
     allCards = [];
+    let logIndex = 0;
+       const cardCountDisplay = document.getElementById('cardCount');
+     cardCountDisplay.textContent = "CSV data parsed. Generating ID cards...";
     for (let i = 1; i < rows.length; i++) {
         const values = rows[i].split(',').map(value => value.trim());
         if(values.length === headers.length){
@@ -32,7 +43,6 @@ function generateIdCards(rows) {
 
             const idCard = document.createElement('div');
             idCard.classList.add('idCard');
-
             let cardInfo = `
                 <div class="info">
                     <p>Name: ${employee.name}</p>
@@ -46,6 +56,8 @@ function generateIdCards(rows) {
             `;
 
             idCard.innerHTML = cardInfo;
+              cardCountDisplay.textContent = `Generating QR code for entry ${i}...`;
+             await new Promise(resolve => setTimeout(resolve, 10)); // Introduce a small delay for visual feedback
             new QRCode(idCard.querySelector('.qrcode'), {
                 text: employee.hh_id,
                 width: 120,
@@ -54,12 +66,14 @@ function generateIdCards(rows) {
              allCards.push(idCard);
 
         }else{
-            console.error(`Error: Invalid data in row ${i}`);
-        }
+             console.error(`Error: Invalid data in row ${i}`);
+             }
     }
-  currentPage = 0;
-  updateCardDisplay();
-  updateNavigationButtons();
+      cardCountDisplay.textContent = "All ID cards generated.";
+        currentPage = 0;
+       updateCardDisplay();
+       updateNavigationButtons();
+        console.log("Displaying cards 1-10...");
 }
 
 function updateCardDisplay() {
@@ -78,8 +92,9 @@ function updateCardCount() {
     const cardCountDisplay = document.getElementById('cardCount');
     const start = (currentPage * cardsPerPage) + 1;
      const end = Math.min((currentPage + 1) * cardsPerPage, allCards.length);
-     cardCountDisplay.textContent = `Showing cards ${start}-${end} of ${allCards.length}`;
-
+    const message =  `Showing cards from ${start} to ${end} of ${allCards.length}`
+     cardCountDisplay.textContent = message;
+    console.log(message)
 }
 
 function updateNavigationButtons() {
@@ -91,20 +106,26 @@ function updateNavigationButtons() {
 }
 
 document.getElementById('prevBtn').addEventListener('click', () => {
+    console.log("Previous button clicked. Displaying previous set of cards...");
     currentPage--;
     updateCardDisplay();
     updateNavigationButtons();
 });
 
 document.getElementById('nextBtn').addEventListener('click', () => {
-     currentPage++;
+     console.log("Next button clicked. Displaying next set of cards...");
+    currentPage++;
     updateCardDisplay();
      updateNavigationButtons();
 });
 
 document.getElementById('downloadPdf').addEventListener('click', function() {
+     console.log("Initiating single page PDF download...");
     const element = document.getElementById('idCardContainer');
-      html2pdf().from(element).save('beneficiary_id_cards.pdf');
+     html2pdf().from(element).save('beneficiary_id_cards.pdf').then(() => {
+            console.log("Single page PDF download completed.")
+     });
+
 });
 document.getElementById('pageCountInput').addEventListener('input', function() {
     let pageCount = this.value;
@@ -116,12 +137,14 @@ document.getElementById('pageCountInput').addEventListener('input', function() {
 });
 
 document.getElementById('downloadNextPagesBtn').addEventListener('click', async function() {
+    console.log("Starting multiple page PDF download...");
     let pageCount = document.getElementById('pageCountInput').value;
     if (pageCount < 1 || isNaN(pageCount)){
        pageCount = 1;
         document.getElementById('pageCountInput').value = 1;
     }
    for (let i = 0; i < pageCount; i++){
+       console.log(`Downloading PDF for page ${currentPage+1}`);
        const element = document.getElementById('idCardContainer');
       await  html2pdf().from(element).save(`beneficiary_id_cards_page_${currentPage + 1}.pdf`);
         if ((currentPage + 1) * cardsPerPage < allCards.length){
@@ -130,4 +153,5 @@ document.getElementById('downloadNextPagesBtn').addEventListener('click', async 
             updateNavigationButtons();
         }
     }
+     console.log("Multiple page PDF download completed.");
 });
