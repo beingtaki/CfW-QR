@@ -11,10 +11,7 @@ document.getElementById('csvFile').addEventListener('change', function(event) {
         const csvData = e.target.result;
         const rows = csvData.split('\n').filter(row => row.trim() !== "");
        await generateIdCards(rows);
-
-         setTimeout(() => {
-              cardCountDisplay.textContent = "";
-          }, 1000);
+        
     };
     reader.readAsText(file);
 });
@@ -69,11 +66,16 @@ async function generateIdCards(rows) {
              console.error(`Error: Invalid data in row ${i}`);
              }
     }
-      cardCountDisplay.textContent = "All ID cards generated.";
-        currentPage = 0;
+     cardCountDisplay.textContent = "All ID cards generated.";
+       currentPage = 0;
        updateCardDisplay();
        updateNavigationButtons();
-        console.log("Displaying cards 1-10...");
+         console.log("Displaying cards 1-10...");
+    setTimeout(() => {
+        cardCountDisplay.textContent = "";
+        updateCardCount();
+    }, 1000);
+
 }
 
 function updateCardDisplay() {
@@ -85,7 +87,7 @@ function updateCardDisplay() {
       const cardsToDisplay = allCards.slice(start, end);
 
        cardsToDisplay.forEach(card => idCardContainer.appendChild(card));
-        updateCardCount();
+
 }
 
 function updateCardCount() {
