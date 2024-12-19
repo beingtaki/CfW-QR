@@ -104,7 +104,7 @@ document.getElementById('nextBtn').addEventListener('click', () => {
 
 document.getElementById('downloadPdf').addEventListener('click', function() {
     const element = document.getElementById('idCardContainer');
-      html2pdf().from(element).save('employee_id_cards.pdf');
+      html2pdf().from(element).save('beneficiary_id_cards.pdf');
 });
 document.getElementById('pageCountInput').addEventListener('input', function() {
     let pageCount = this.value;
@@ -123,7 +123,7 @@ document.getElementById('downloadNextPagesBtn').addEventListener('click', async 
     }
    for (let i = 0; i < pageCount; i++){
        const element = document.getElementById('idCardContainer');
-      await  html2pdf().from(element).save(`employee_id_cards_page_${currentPage + 1}.pdf`);
+      await  html2pdf().from(element).save(`beneficiary_id_cards_page_${currentPage + 1}.pdf`);
         if ((currentPage + 1) * cardsPerPage < allCards.length){
             currentPage++;
            updateCardDisplay();
