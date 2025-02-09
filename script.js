@@ -1,161 +1,258 @@
-document.getElementById('csvFile').addEventListener('change', function(event) {
-    const file = event.target.files[0];
-    if (!file) return;
 
-    const cardCountDisplay = document.getElementById('cardCount');
-    cardCountDisplay.textContent = "File selected. Starting file processing...";
-
-    const reader = new FileReader();
-    reader.onload = async function(e) {
-        cardCountDisplay.textContent = "File loaded. Reading CSV data...";
-        const csvData = e.target.result;
-        const rows = csvData.split('\n').filter(row => row.trim() !== "");
-        await generateIdCards(rows);
-
-    };
-    reader.readAsText(file);
+// Template download functionality
+document.getElementById('downloadTemplate').addEventListener('click', function() {
+    const headers = ['HH ID', 'Name', 'Gender', 'Mobile'];
+    const csvContent = headers.join(',') + '\n';
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'id_card_template.csv';
+    a.click();
+    window.URL.revokeObjectURL(url);
 });
 
 let allCards = [];
 let currentPage = 0;
 const cardsPerPage = 10;
 
+function updateProgress(percent, text) {
+    const progressContainer = document.querySelector('.progress-container');
+    const progress = document.querySelector('.progress');
+    const progressText = document.querySelector('#progressText');
+    progressContainer.style.display = 'block';
+    progress.style.width = `${percent}%`;
+    if (text) {
+        progressText.textContent = text;
+    }
+    if (percent >= 100) {
+        setTimeout(() => {
+            progressContainer.style.display = 'none';
+        }, 1000);
+    }
+}
+
+document.getElementById('csvFile').addEventListener('change', function(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    updateProgress(0);
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+        const csvData = e.target.result;
+        const rows = csvData.split('\n').filter(row => row.trim() !== "");
+        allCards = [];
+        await generateIdCards(rows);
+        await generatePDF();
+    };
+    reader.readAsText(file);
+});
+
+function generateQRCode(text) {
+    const qr = new QRCode(document.createElement("div"), {
+        text: text,
+        width: 120,
+        height: 120,
+        colorDark: "#000000",
+        colorLight: "#ffffff",
+        correctLevel: QRCode.CorrectLevel.H
+    });
+    return qr._oDrawing._elImage.outerHTML;
+}
+
 async function generateIdCards(rows) {
-    const idCardContainer = document.getElementById('idCardContainer');
-    idCardContainer.innerHTML = '';
     const headers = rows[0].split(',').map(header => header.trim());
     allCards = [];
-    let logIndex = 0;
-    const cardCountDisplay = document.getElementById('cardCount');
-    cardCountDisplay.textContent = "CSV data parsed. Generating ID cards...";
+    
     for (let i = 1; i < rows.length; i++) {
+        const progress = (i / (rows.length - 1)) * 100;
+        updateProgress(progress);
+        
         const values = rows[i].split(',').map(value => value.trim());
         if (values.length === headers.length) {
-            const employee = {};
+            const data = {};
+            headers.forEach((header, index) => {
+                data[header.toLowerCase().replace(' ', '_')] = values[index];
+            });
 
-            for (let j = 0; j < headers.length; j++) {
-                employee[headers[j]] = values[j];
-            }
-
-            const idCard = document.createElement('div');
-            idCard.classList.add('idCard');
-            let cardInfo = `
-                <div class="info">
-                    <p>Name: ${employee.name}</p>
-                    <p>HH ID: ${employee.hh_id}</p>
-                    <p>Gender: ${employee.gender}</p>
-                    <p>Phone: ${employee.phone}</p>
-                    <p>Union: ${employee.union}</p>
-                 </div>
-                 <div class="qrcode" id="qrcode-${i}"></div>
-
-            `;
-
-            idCard.innerHTML = cardInfo;
-            cardCountDisplay.textContent = `Generating QR code for entry ${i}...`;
-            await new Promise(resolve => setTimeout(resolve, 10)); // Introduce a small delay for visual feedback
-            new QRCode(idCard.querySelector('.qrcode'), {
-                text: employee.hh_id,
+            const tempDiv = document.createElement('div');
+            new QRCode(tempDiv, {
+                text: data.hh_id,
                 width: 120,
                 height: 120,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
             });
-            allCards.push(idCard);
-
-        } else {
-            console.error(`Error: Invalid data in row ${i}`);
+            const qrCodeSvg = tempDiv.innerHTML;
+            allCards.push({ 
+                data: data,
+                qrCode: qrCodeSvg
+            });
         }
     }
-        cardCountDisplay.textContent = "All ID cards generated.";
-        currentPage = 0;
-        updateCardDisplay();
-        updateNavigationButtons();
-        console.log("Displaying cards 1-10...");
-        setTimeout(() => {
-             cardCountDisplay.textContent = "";
-            updateCardCount();
-        }, 1000);
-}
-
-function updateCardDisplay() {
-    const idCardContainer = document.getElementById('idCardContainer');
-    idCardContainer.innerHTML = '';
-
-    const start = currentPage * cardsPerPage;
-    const end = start + cardsPerPage;
-    const cardsToDisplay = allCards.slice(start, end);
-
-    cardsToDisplay.forEach(card => idCardContainer.appendChild(card));
-
-
-}
-
-function updateCardCount() {
-    const cardCountDisplay = document.getElementById('cardCount');
-    const start = (currentPage * cardsPerPage) + 1;
-    const end = Math.min((currentPage + 1) * cardsPerPage, allCards.length);
-    const message = `Showing cards from ${start} to ${end} of ${allCards.length}`
-    cardCountDisplay.textContent = message;
-    console.log(message)
 }
 
 function updateNavigationButtons() {
-    const prevBtn = document.getElementById('prevBtn');
-    const nextBtn = document.getElementById('nextBtn');
-
-    prevBtn.disabled = currentPage === 0;
-    nextBtn.disabled = (currentPage + 1) * cardsPerPage >= allCards.length;
+    // Navigation buttons removed
 }
 
-document.getElementById('prevBtn').addEventListener('click', () => {
-    console.log("Previous button clicked. Displaying previous set of cards...");
-    currentPage--;
-    updateCardDisplay();
-    updateNavigationButtons();
-    updateCardCount();
-});
+async function generatePDF() {
+    updateProgress(0);
+    const { PDFDocument, rgb } = PDFLib;
+    const pdfDoc = await PDFDocument.create();
+    const pageCount = Math.ceil(allCards.length / cardsPerPage);
+    document.querySelector('.progress-container').style.display = 'block';
+    
+    for (let pageNum = 0; pageNum < pageCount; pageNum++) {
+        const page = pdfDoc.addPage([595, 842]); // A4 size in points
+        const { width, height } = page.getSize();
+        
+        const startIdx = pageNum * cardsPerPage;
+        const endIdx = Math.min(startIdx + cardsPerPage, allCards.length);
+        const pageCards = allCards.slice(startIdx, endIdx);
+        
+        // Calculate card dimensions and margins
+        const cardWidth = (width - 40) / 2;  // 2 columns, 20pt margins
+        const cardHeight = (height - 60) / 5; // 5 rows, 30pt margins + footer
+        
+        for (let i = 0; i < pageCards.length; i++) {
+            const row = Math.floor(i / 2);
+            const col = i % 2;
+            const x = 20 + (col * cardWidth);
+            const y = height - 30 - ((row + 1) * cardHeight);
+            
+            const card = pageCards[i];
+            const { data } = card;
+            
+            // Draw card border
+            page.drawRectangle({
+                x: x,
+                y: y,
+                width: cardWidth - 10,
+                height: cardHeight - 10,
+                borderWidth: 2,
+                borderColor: rgb(0, 0, 0),
+                borderDashArray: [4, 4]
+            });
+            
+            // Add text content with word wrapping and vertical centering
+            const fontSize = 12;
+            const lineHeight = 16;
+            const textStartX = x + 5; // 5px left padding
+            const textWidth = cardWidth * 0.55 - 10; // 55% of card width minus padding
+            
+            // Calculate total text height to center vertically
+            const texts = [
+                `Name: ${data.name}`,
+                `HH ID: ${data.hh_id}`,
+                `Gender: ${data.gender}`,
+                `Mobile: ${data.mobile}`
+            ];
+            
+            // Calculate total lines needed
+            let totalLines = 0;
+            texts.forEach(text => {
+                const words = text.split(' ');
+                let currentLine = '';
+                words.forEach(word => {
+                    const testLine = currentLine + (currentLine ? ' ' : '') + word;
+                    if (testLine.length * (fontSize * 0.6) < textWidth) {
+                        currentLine = testLine;
+                    } else {
+                        totalLines++;
+                        currentLine = word;
+                    }
+                });
+                if (currentLine) totalLines++;
+            });
+            
+            // Calculate starting Y position to center text vertically
+            const totalTextHeight = totalLines * lineHeight;
+            let currentY = y + ((cardHeight - totalTextHeight) / 2) + totalTextHeight - 10;
+            
+            const addWrappedText = (text, startY) => {
+                const words = text.split(' ');
+                let line = '';
+                let resultY = startY;
+                
+                words.forEach(word => {
+                    const testLine = line + (line ? ' ' : '') + word;
+                    if (testLine.length * (fontSize * 0.6) < textWidth) {
+                        line = testLine;
+                    } else {
+                        page.drawText(line, { x: textStartX, y: resultY, size: fontSize });
+                        resultY -= lineHeight;
+                        line = word;
+                    }
+                });
+                if (line) {
+                    page.drawText(line, { x: textStartX, y: resultY, size: fontSize });
+                    resultY -= lineHeight;
+                }
+                return resultY;
+            };
 
-document.getElementById('nextBtn').addEventListener('click', () => {
-    console.log("Next button clicked. Displaying next set of cards...");
-    currentPage++;
-    updateCardDisplay();
-    updateNavigationButtons();
-    updateCardCount();
-});
-
-document.getElementById('downloadPdf').addEventListener('click', function() {
-    console.log("Initiating single page PDF download...");
-    const element = document.getElementById('idCardContainer');
-    html2pdf().from(element).save('beneficiary_id_cards.pdf').then(() => {
-        console.log("Single page PDF download completed.")
-    });
-
-});
-document.getElementById('pageCountInput').addEventListener('input', function() {
-    let pageCount = this.value;
-    if (pageCount < 1 || isNaN(pageCount)) {
-        pageCount = 1;
-        this.value = 1;
-    }
-    document.getElementById('downloadNextPagesBtn').textContent = `Download Next ${pageCount} Pages`
-});
-
-document.getElementById('downloadNextPagesBtn').addEventListener('click', async function() {
-    console.log("Starting multiple page PDF download...");
-    let pageCount = document.getElementById('pageCountInput').value;
-    if (pageCount < 1 || isNaN(pageCount)) {
-        pageCount = 1;
-        document.getElementById('pageCountInput').value = 1;
-    }
-    for (let i = 0; i < pageCount; i++) {
-        console.log(`Downloading PDF for page ${currentPage+1}`);
-        const element = document.getElementById('idCardContainer');
-        await html2pdf().from(element).save(`beneficiary_id_cards_page_${currentPage + 1}.pdf`);
-        if ((currentPage + 1) * cardsPerPage < allCards.length) {
-            currentPage++;
-            updateCardDisplay();
-            updateNavigationButtons();
-             updateCardCount();
+            texts.forEach(text => {
+                currentY = addWrappedText(text, currentY);
+            });
+            
+            // Create QR code image
+            const tempDiv = document.createElement('div');
+            const qr = new QRCode(tempDiv, {
+                text: data.hh_id,
+                width: 120,
+                height: 120,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
+            });
+            const qrCanvas = tempDiv.querySelector('canvas');
+            const qrDataUrl = qrCanvas.toDataURL('image/png');
+            const qrImageBytes = await fetch(qrDataUrl).then(res => res.arrayBuffer());
+            const qrImage = await pdfDoc.embedPng(qrImageBytes);
+            
+            // Center QR code vertically
+            const qrCodeY = y + ((cardHeight - 120) / 2);
+            page.drawImage(qrImage, {
+                x: x + cardWidth - 130 - 10,
+                y: qrCodeY,
+                width: 120,
+                height: 120
+            });
+            
+            // Update progress
+            const progress = ((pageNum * cardsPerPage + i + 1) / allCards.length) * 100;
+            updateProgress(progress);
         }
+        
+        // Add centered footer
+        const startHHID = allCards[startIdx].data.hh_id;
+        const endHHID = allCards[endIdx - 1].data.hh_id;
+        
+        const footerText = `Page ${pageNum + 1}  |  HH ID Range: ${startHHID} - ${endHHID}`;
+        const textWidth = footerText.length * 5; // Approximate width
+        
+        page.drawText(footerText, {
+            x: (width - textWidth) / 2,
+            y: 12,
+            size: 10
+        });
     }
-    console.log("Multiple page PDF download completed.");
-});
+    
+    const pdfBytes = await pdfDoc.save();
+    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+    const dataUrl = URL.createObjectURL(blob);
+    
+    const pdfViewerDiv = document.getElementById('pdfViewer');
+    pdfViewerDiv.innerHTML = ''; // Clear previous PDF
+    const iframe = document.createElement('iframe');
+    iframe.src = dataUrl;
+    iframe.type = 'application/pdf';
+    iframe.style.width = '100%';
+    iframe.style.height = '600px';
+    iframe.style.border = 'none';
+    pdfViewerDiv.appendChild(iframe);
+}
+
+// PDF generation starts automatically after CSV upload
