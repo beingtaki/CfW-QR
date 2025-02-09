@@ -9,18 +9,20 @@
 <body>
     <h1>CfW Beneficiary ID Card Generator</h1>
      <div id="controls">
-      <input type="file" id="csvFile" accept=".csv">
-      <input type="number" id="pageCountInput" min="1" value="1">
-      <button id="downloadNextPagesBtn">Download Next 1 Pages</button>
-      <button id="prevBtn" disabled>Previous</button>
-      <button id="nextBtn" disabled>Next</button>
-      <button id="downloadPdf">Download PDF</button>
+      <div class="control-group">
+        <button id="downloadTemplate">Download CSV Template</button>
+        <input type="file" id="csvFile" accept=".csv">
+      </div>
      </div>
-    <div id="cardCount"></div>
-    <div id="idCardContainer"></div>
+    <div id="progressBar" class="progress-container">
+      <div class="progress"></div>
+      <div id="progressText"></div>
+    </div>
+    <div id="pdfViewer"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+    <script src="https://unpkg.com/@pdf-lib/fontkit/dist/fontkit.umd.min.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
